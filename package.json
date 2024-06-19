@@ -1,5 +1,5 @@
 {
-  "name": "test3",
+  "name": "testwebapp",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -13,7 +13,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+	"mongoose": "^8.4.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
