@@ -1,20 +1,13 @@
 const morgan = require('morgan')
 const cors = require('cors')
 
-let persons = [
-  {
-    id: 1,
-    name: "sandip",
-    number: "1000",
-    important: true
-  }
-]
-
 const express = require('express')
 const app = express()
 app.use(cors())
 app.use(express.static('dist'))
 app.use(express.json()) //used for parsing json
+
+const Persons = require('./models/person')
 
 //morgan for logging
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :content'));
@@ -24,45 +17,38 @@ morgan.token('content', function(req, res) {
 });
 
 app.get('/', (request, response) => {
-  response.send('<h1>Hello World!</h1>')
+  response.send("<h1>Hello World<h1>")
 })
 
 app.get('/api/persons', (request, response) => {
-  response.json(persons)
+  Persons.find().then(persons => {
+    console.log(persons)
+    response.send(persons)
+  })
 })
  
-
 app.get('/info', (request, response) => {
-  const res = '<p> PhoneBook has Info for ' + persons.length + ' people</p><p>' + Date().toString() + '</p>'
-  response.send(res)
+  Persons.find().then(persons => {
+    const res = '<p> PhoneBook has Info for ' + persons.length + ' people</p><p>' + Date().toString() + '</p>'
+    response.send(res)
+  })
 })
 
-app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const p = persons.find(p => p.id === id)
-
-    if (p) {
-        response.json(p)
-    } else {
-      const error = "No record for this " + id
-      return response.status(404).json({ 
-        error: error
-      })
-    }
+app.get('/api/persons/:id', (request, response, next) => {
+    Persons.findById(request.params.id).then(person => {
+      if(person) {
+        response.json(person)
+      } else {
+        response.status(404).json({ error:  "No record for this Id"})
+      }
+    }).catch(error => next(error))
 })
 
 app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const exists = persons.some((element) => element.id === id);
-    if(exists) {
-      persons = persons.filter(p => p.id !== id)
+    Persons.findByIdAndDelete(request.params.id).then(person => {
       response.status(204).end()
-    } else {
-      const error = "No record for this " + id
-      return response.status(404).json({ 
-        error: error
-      })
-    }
+    })
+    .catch(error => next(error))
 })
 
 const generateId = () => {
@@ -70,14 +56,10 @@ const generateId = () => {
   return id
 }
 
-const isDuplicate = (name) => {
-  return persons.some((element) => element.name === name);
-}
-
 app.post('/api/persons', (request, response) => {
   const body = request.body
 
-  if (!body.name || !body.number || isDuplicate(body.name)) {
+  if (!body.name || !body.number) {
     return response.status(400).json({ 
       error: 'error in content'
     })
@@ -90,9 +72,27 @@ app.post('/api/persons', (request, response) => {
     id: generateId(),
   }
 
-  persons = persons.concat(person)
+  Persons.create(person).then( person => {
+    console.log('note saved!')
+    response.json(person)
+  })
+})
 
-  response.json(person)
+app.put('/api/persons/:id', (request, response, next) => {
+  const body = request.body
+
+  const person = {
+    name: body.name,
+    number: body.number,
+    important: Boolean(body.important) || false,
+    id: request.params.id
+  }
+
+  Persons.findByIdAndUpdate(request.params.id, person, { new: true })
+    .then(updatedNote => {
+      response.json(updatedNote)
+    })
+    .catch(error => next(error))
 })
 
 const PORT = process.env.PORT || 3001
@@ -105,3 +105,16 @@ const unknownEndpoint = (request, response) => {
 }
 
 app.use(unknownEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+
+  next(error)
+}
+
+// this has to be the last loaded middleware, also all the routes should be registered before this!
+app.use(errorHandler)
